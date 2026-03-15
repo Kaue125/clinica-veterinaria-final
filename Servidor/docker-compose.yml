@@ -1,0 +1,36 @@
+version: '3.8'
+
+# ================================================================
+# Evolution API — servidor WhatsApp open source
+# Roda localmente com um único comando: docker-compose up -d
+# ================================================================
+
+services:
+  evolution-api:
+    image: atendai/evolution-api:latest
+    container_name: vetcare-evolution
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      # Chave de acesso à API — deve ser igual ao CONFIG.apiKey no server.js
+      - AUTHENTICATION_API_KEY=vetcare-secret-key
+      # Armazena sessões localmente
+      - DATABASE_PROVIDER=typeorm
+      - DATABASE_CONNECTION_URI=
+      - DATABASE_ENABLED=false
+      # Configurações básicas
+      - SERVER_PORT=8080
+      - SERVER_URL=http://localhost:8080
+      - DEL_INSTANCE=false
+      - STORE_MESSAGES=true
+      - STORE_CONTACTS=true
+      # Log
+      - LOG_LEVEL=ERROR
+    volumes:
+      - evolution_data:/evolution/instances
+      - evolution_store:/evolution/store
+
+volumes:
+  evolution_data:
+  evolution_store:

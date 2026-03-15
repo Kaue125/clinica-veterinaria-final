@@ -1,0 +1,8 @@
+2026/03/14-12:26:19.399 21ec Creating DB C:\Users\gabri\clinica-veterinaria-final\Servidor\.wwebjs_auth\session-vetcare\Default\Local Storage\leveldb since it was missing.
+2026/03/14-12:26:19.500 21ec Reusing MANIFEST C:\Users\gabri\clinica-veterinaria-final\Servidor\.wwebjs_auth\session-vetcare\Default\Local Storage\leveldb/MANIFEST-000001
+2026/03/14-15:56:38.190 21ec Level-0 table #5: started
+2026/03/14-15:56:38.194 21ec Level-0 table #5: 16758 bytes OK
+2026/03/14-15:56:38.195 21ec Delete type=0 #3
+2026/03/14-20:44:33.705 21ec Level-0 table #7: started
+2026/03/14-20:44:33.711 21ec Level-0 table #7: 13792 bytes OK
+2026/03/14-20:44:33.713 21ec Delete type=0 #4
