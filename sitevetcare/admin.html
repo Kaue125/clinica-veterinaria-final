@@ -386,12 +386,16 @@ async function handleLogin() {
   const pw = document.getElementById('login-password').value.trim();
   const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
   try {
-    const resposta = await fetch(`${backendUrl}/api/admin/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ senha: pw })
-    });
-    if (!resposta.ok) throw new Error('Senha incorreta.');
+    if (backendUrl) {
+      const resposta = await fetch(`${backendUrl}/api/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senha: pw })
+      });
+      if (!resposta.ok) throw new Error('Senha incorreta.');
+    } else if (pw !== VetCareConfig.admin.senha) {
+      throw new Error('Senha incorreta.');
+    }
     sessionStorage.setItem('admin_auth','1');
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app').style.display='block';
@@ -447,7 +451,16 @@ const AdminDB = {
     }
     // Tenta Firebase primeiro, senão usa local
     if (typeof VetCareDB !== 'undefined' && VetCareDB.db) {
-      try { return await VetCareDB.buscarAgendamentos(); } catch {}
+      try {
+        const lista = await VetCareDB.buscarAgendamentos();
+        return lista.map(a => ({
+          ...a,
+          dataFormatada: a.dataFormatada || a.data_formatada,
+          criadoEm: a.criadoEm || a.criado_em
+        }));
+      } catch (error) {
+        console.warn('Supabase indisponível:', error.message);
+      }
     }
     return this.lerLocal();
   },
@@ -464,7 +477,9 @@ const AdminDB = {
       console.warn('Servidor de agendamentos indisponível:', error.message);
     }
     if (typeof VetCareDB !== 'undefined' && VetCareDB.db) {
-      try { await VetCareDB.atualizarStatus(id, status); return; } catch {}
+      try { await VetCareDB.atualizarStatus(id, status); return; } catch (error) {
+        console.warn('Supabase indisponível:', error.message);
+      }
     }
     const lista = this.lerLocal();
     const idx = lista.findIndex(a => a.id === id);
@@ -634,9 +649,16 @@ function escapeHtml(value) {
 
 async function buscarMensagens() {
   const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
-  const resposta = await fetch(`${backendUrl}/api/mensagens`);
-  if (!resposta.ok) throw new Error(`Servidor respondeu com HTTP ${resposta.status}`);
-  return resposta.json();
+  if (backendUrl) {
+    const resposta = await fetch(`${backendUrl}/api/mensagens`);
+    if (!resposta.ok) throw new Error(`Servidor respondeu com HTTP ${resposta.status}`);
+    return resposta.json();
+  }
+  if (typeof VetCareDB !== 'undefined' && VetCareDB.db) {
+    const mensagens = await VetCareDB.buscarMensagens();
+    return mensagens.map(m => ({ ...m, criadaEm: m.criadaEm || m.criada_em }));
+  }
+  throw new Error('Configure o Supabase antes de carregar mensagens.');
 }
 
 async function renderMensagens() {
@@ -680,17 +702,25 @@ async function renderMensagens() {
 
 async function marcarMensagem(id) {
   const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
-  await fetch(`${backendUrl}/api/mensagens/${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ lida: true })
-  });
+  if (backendUrl) {
+    await fetch(`${backendUrl}/api/mensagens/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lida: true })
+    });
+  } else if (typeof VetCareDB !== 'undefined' && VetCareDB.db) {
+    await VetCareDB.marcarMensagem(id);
+  }
   await renderMensagens();
 }
 
 async function excluirMensagem(id) {
   const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
-  await fetch(`${backendUrl}/api/mensagens/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (backendUrl) {
+    await fetch(`${backendUrl}/api/mensagens/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  } else if (typeof VetCareDB !== 'undefined' && VetCareDB.db) {
+    await VetCareDB.excluirMensagem(id);
+  }
   await renderMensagens();
   showToast('Mensagem excluída com sucesso!', 'sucesso');
 }

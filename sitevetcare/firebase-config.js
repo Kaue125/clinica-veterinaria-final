@@ -26,8 +26,89 @@ const CONFIG = {
   backendUrl: window.location.protocol === 'http:' || window.location.protocol === 'https:'
     ? ''
     : 'http://localhost:3001',
-  admin: {}
+  admin: { senha: 'vetcare2024' },
+  supabase: {
+    url: 'https://SEU-PROJETO.supabase.co',
+    anonKey: 'SUA_CHAVE_ANON'
+  }
 };
+
+const SUPABASE_CONFIGURED = !CONFIG.supabase.url.includes('SEU-PROJETO')
+  && !CONFIG.supabase.anonKey.includes('SUA_CHAVE');
+
+const VetCareDB = {
+  db: SUPABASE_CONFIGURED,
+  async request(table, options = {}) {
+    if (!SUPABASE_CONFIGURED) throw new Error('Supabase ainda não configurado.');
+    const response = await fetch(`${CONFIG.supabase.url}/rest/v1/${table}`, {
+      ...options,
+      headers: {
+        apikey: CONFIG.supabase.anonKey,
+        Authorization: `Bearer ${CONFIG.supabase.anonKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+        ...(options.headers || {})
+      }
+    });
+    if (!response.ok) throw new Error(`Supabase respondeu com HTTP ${response.status}`);
+    return response.status === 204 ? null : response.json();
+  },
+  async init() {},
+  async salvarAgendamento(dados) {
+    return this.request('agendamentos', {
+      method: 'POST',
+      body: JSON.stringify({
+        nome: dados.nome,
+        telefone: dados.telefone,
+        email: dados.email,
+        pet: dados.pet,
+        servico: dados.servico,
+        data_formatada: dados.dataFormatada,
+        horario: dados.horario,
+        status: 'pendente',
+        criado_em: new Date().toISOString()
+      })
+    });
+  },
+  async buscarAgendamentos() {
+    return this.request('agendamentos?select=*&order=criado_em.desc');
+  },
+  async atualizarStatus(id, status) {
+    return this.request(`agendamentos?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status })
+    });
+  },
+  async salvarMensagem(mensagem) {
+    return this.request('mensagens', {
+      method: 'POST',
+      body: JSON.stringify({
+        id: mensagem.id,
+        nome: mensagem.nome,
+        email: mensagem.email,
+        telefone: mensagem.telefone,
+        servico: mensagem.servico,
+        texto: mensagem.texto,
+        lida: false,
+        criada_em: mensagem.criadaEm
+      })
+    });
+  },
+  async buscarMensagens() {
+    return this.request('mensagens?select=*&order=criada_em.desc');
+  },
+  async marcarMensagem(id) {
+    return this.request(`mensagens?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ lida: true })
+    });
+  },
+  async excluirMensagem(id) {
+    return this.request(`mensagens?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+  }
+};
+
+window.VetCareDB = VetCareDB;
 
 const EvolutionService = {
   async enviarMensagemTexto(numero, texto) {

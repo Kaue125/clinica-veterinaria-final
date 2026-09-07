@@ -282,20 +282,22 @@ function initCalendar() {
     els.confirmBtn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Confirmando...';
 
     try {
-      const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl)
-        ? VetCareConfig.backendUrl
-        : 'http://localhost:3001';
-      const resposta = await fetch(`${backendUrl}/agendamento`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(dados)
-      });
-      const resultado = await resposta.json().catch(() => ({}));
-
-      if (!resposta.ok || resultado.agendamento !== true) {
-        const erroCliente = resultado.cliente?.erro;
-        const erroClinica = resultado.clinica?.erro;
-        throw new Error(erroCliente || erroClinica || resultado.erro || `Servidor respondeu com HTTP ${resposta.status}`);
+      let resultado = { agendamento: true, sucesso: false };
+      const backendUrl = typeof VetCareConfig !== 'undefined' ? VetCareConfig.backendUrl : '';
+      if (backendUrl) {
+        const resposta = await fetch(`${backendUrl}/agendamento`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dados)
+        });
+        resultado = await resposta.json().catch(() => ({}));
+        if (!resposta.ok || resultado.agendamento !== true) {
+          throw new Error(resultado.erro || `Servidor respondeu com HTTP ${resposta.status}`);
+        }
+      } else if (typeof VetCareDB !== 'undefined' && VetCareDB.db) {
+        await VetCareDB.salvarAgendamento(dados);
+      } else {
+        throw new Error('Configure o Supabase antes de publicar o site.');
       }
 
       if (typeof VetCareEmail !== 'undefined') {
@@ -361,16 +363,20 @@ function initContactForm() {
     btn.disabled  = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
     try {
-      const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl)
-        ? VetCareConfig.backendUrl
-        : '';
-      const resposta = await fetch(`${backendUrl}/api/mensagens`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mensagem)
-      });
-      const resultado = await resposta.json().catch(() => ({}));
-      if (!resposta.ok) throw new Error(resultado.erro || `Servidor respondeu com HTTP ${resposta.status}`);
+      const backendUrl = typeof VetCareConfig !== 'undefined' ? VetCareConfig.backendUrl : '';
+      if (backendUrl) {
+        const resposta = await fetch(`${backendUrl}/api/mensagens`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(mensagem)
+        });
+        const resultado = await resposta.json().catch(() => ({}));
+        if (!resposta.ok) throw new Error(resultado.erro || `Servidor respondeu com HTTP ${resposta.status}`);
+      } else if (typeof VetCareDB !== 'undefined' && VetCareDB.db) {
+        await VetCareDB.salvarMensagem(mensagem);
+      } else {
+        throw new Error('Configure o Supabase antes de publicar o site.');
+      }
       e.target.reset();
       if (success) success.hidden=false;
       setTimeout(()=>{ if (success) success.hidden=true; },6000);
