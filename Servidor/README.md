@@ -43,6 +43,27 @@ servidor/
 
 **6.** Pronto! A partir de agora todo agendamento no site envia mensagens automáticas.
 
+## 🌍 Publicar para acessar de qualquer lugar
+
+O arquivo `render.yaml`, na raiz do projeto, configura a publicação do site e do painel
+na Render. A Render fornece HTTPS automaticamente, então o celular poderá acessar por
+um endereço público como `https://vetcare.onrender.com`.
+
+1. Crie uma conta em [render.com](https://render.com).
+2. Escolha **New + → Blueprint** e selecione este repositório.
+3. Confirme o serviço definido em `render.yaml`.
+4. Em **Environment**, configure `EVOLUTION_URL`, `EVOLUTION_API_KEY`,
+   `EVOLUTION_INSTANCE` e `CLINICA_NUM`.
+5. Após o deploy, abra `https://SEU-ENDERECO.onrender.com/` no celular.
+
+A Evolution API não pode continuar em `localhost` na Render: ela também precisa estar
+publicada em um servidor acessível pela internet. Sem isso, o site funcionará, mas os
+envios de WhatsApp não funcionarão.
+
+O armazenamento atual usa arquivo local. Para não perder mensagens e agendamentos
+quando o serviço for reiniciado, use um banco de dados ou um disco persistente da
+Render (recurso pago).
+
 ---
 
 ## ⚙️ Configurações

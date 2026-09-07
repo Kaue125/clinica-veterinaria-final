@@ -202,6 +202,28 @@
 
     .loading-state { text-align:center; padding:48px; color:var(--text-light); }
     .loading-state i { font-size:2rem; color:var(--primary); }
+    .message-card {
+      margin: 16px 24px;
+      padding: 20px;
+      border: 1px solid #edf0f2;
+      border-left: 4px solid transparent;
+      border-radius: 10px;
+      background: var(--white);
+    }
+    .message-card.unread { border-left-color: var(--primary); background: #fafffc; }
+    .message-card-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+    .message-card-header strong,
+    .message-card-header small { display: block; }
+    .message-card-header strong { color: var(--secondary); }
+    .message-card-header small,
+    .message-card > p { color: var(--text-light); font-size: .84rem; line-height: 1.6; }
+    .message-card > p { margin-top: 8px; white-space: pre-wrap; }
+    .message-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 14px; }
 
     /* ── TOAST ── */
     .toast {
@@ -262,6 +284,10 @@
         <i class="fas fa-calendar-alt"></i> Agendamentos
         <span class="nav-badge" id="nav-badge" style="display:none;margin-left:auto;background:var(--accent);color:#fff;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:50px;">0</span>
       </div>
+      <div class="sidebar-link" onclick="showPage('mensagens')" id="nav-mensagens">
+        <i class="fas fa-envelope"></i> Mensagens
+        <span class="nav-badge" id="message-badge" style="display:none;margin-left:auto;background:var(--accent);color:#fff;font-size:.7rem;font-weight:700;padding:2px 8px;border-radius:50px;">0</span>
+      </div>
       <div class="sidebar-link" onclick="window.open('index.html','_blank')">
         <i class="fas fa-external-link-alt"></i> Ver Site
       </div>
@@ -285,6 +311,7 @@
       </div>
     </div>
 
+    <div id="page-agendamentos">
     <!-- KPIs -->
     <div class="kpi-grid" id="kpi-grid">
       <div class="kpi-card">
@@ -327,6 +354,19 @@
         <div class="loading-state"><i class="fas fa-spinner fa-spin"></i><p style="margin-top:12px">Carregando...</p></div>
       </div>
     </div>
+    </div>
+    <section id="page-mensagens" hidden>
+      <div class="filters-bar">
+        <input class="search-input" id="message-search" type="text" placeholder="🔍 Buscar por nome, e-mail ou mensagem..." oninput="renderMensagens()"/>
+      </div>
+      <div class="table-card">
+        <div class="table-header">
+          <h2>Mensagens recebidas</h2>
+          <span class="table-count" id="message-count">0 resultados</span>
+        </div>
+        <div id="message-list"></div>
+      </div>
+    </section>
   </main>
 </div>
 
@@ -342,22 +382,24 @@ const WHATSAPP_NUM = (typeof VetCareConfig !== 'undefined')
   : '5511987654321';
 
 // ── AUTH ──────────────────────────────────────
-function handleLogin() {
+async function handleLogin() {
   const pw = document.getElementById('login-password').value.trim();
-  // Aceita a senha do config OU a padrão
-  const senhaCorreta = (typeof VetCareConfig !== 'undefined')
-    ? VetCareConfig.admin.senha
-    : 'vetcare2024';
-
-  if (pw === senhaCorreta) {
+  const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
+  try {
+    const resposta = await fetch(`${backendUrl}/api/admin/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ senha: pw })
+    });
+    if (!resposta.ok) throw new Error('Senha incorreta.');
     sessionStorage.setItem('admin_auth','1');
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app').style.display='block';
     startApp();
-  } else {
+  } catch (error) {
     const errEl = document.getElementById('login-error');
     errEl.style.display='block';
-    errEl.textContent = `Senha incorreta. (dica: verifique firebase-config.js)`;
+    errEl.textContent = 'Senha incorreta ou servidor indisponível.';
     document.getElementById('login-password').value = '';
     document.getElementById('login-password').focus();
   }
@@ -382,6 +424,7 @@ function logout() {
 
 // ── APP ──────────────────────────────────────
 const STORAGE_KEY_ADMIN = 'vetcare_agendamentos';
+const STORAGE_KEY_MESSAGES = 'vetcare_mensagens';
 let allAgendamentos = [];
 let knownIds = new Set();
 
@@ -395,6 +438,13 @@ const AdminDB = {
     localStorage.setItem(STORAGE_KEY_ADMIN, JSON.stringify(lista));
   },
   async buscar() {
+    const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
+    try {
+      const resposta = await fetch(`${backendUrl}/api/agendamentos`);
+      if (resposta.ok) return await resposta.json();
+    } catch (error) {
+      console.warn('Servidor de agendamentos indisponível:', error.message);
+    }
     // Tenta Firebase primeiro, senão usa local
     if (typeof VetCareDB !== 'undefined' && VetCareDB.db) {
       try { return await VetCareDB.buscarAgendamentos(); } catch {}
@@ -402,6 +452,17 @@ const AdminDB = {
     return this.lerLocal();
   },
   async atualizarStatus(id, status) {
+    const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
+    try {
+      const resposta = await fetch(`${backendUrl}/api/agendamentos/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (resposta.ok) return;
+    } catch (error) {
+      console.warn('Servidor de agendamentos indisponível:', error.message);
+    }
     if (typeof VetCareDB !== 'undefined' && VetCareDB.db) {
       try { await VetCareDB.atualizarStatus(id, status); return; } catch {}
     }
@@ -417,10 +478,11 @@ async function startApp() {
     await VetCareDB.init().catch(() => {});
   }
   await loadAgendamentos();
+  renderMensagens();
 
   // Escuta mudanças em tempo real (entre abas)
   window.addEventListener('storage', async (e) => {
-    if (e.key === STORAGE_KEY_ADMIN || e.key === null) {
+    if (e.key === STORAGE_KEY_ADMIN || e.key === STORAGE_KEY_MESSAGES || e.key === null) {
       const anterior = allAgendamentos.length;
       allAgendamentos = await AdminDB.buscar();
       const novos = allAgendamentos.filter(a => !knownIds.has(a.id));
@@ -435,6 +497,7 @@ async function startApp() {
         }, 600);
       }
       updateKPIs(); renderTable();
+      renderMensagens();
     }
   });
 
@@ -442,6 +505,7 @@ async function startApp() {
   setInterval(async () => {
     allAgendamentos = await AdminDB.buscar();
     updateKPIs(); renderTable();
+    renderMensagens();
   }, 30000);
 }
 
@@ -499,11 +563,12 @@ function renderTable() {
   };
 
   const rows = list.map(a => {
-    const num = (typeof VetCareConfig !== 'undefined') ? VetCareConfig.whatsapp.numero : '5511987654321';
+    const num = String(a.telefone || '').replace(/\D/g, '');
+    const numFormatado = num.startsWith('55') ? num : `55${num}`;
     const waMsg = encodeURIComponent(
       `Olá ${a.nome}! 😊 Confirmando seu agendamento na *VetCare*:\n📅 *${a.dataFormatada}* às *${a.horario}*\n💉 *${a.servico}*\nQualquer dúvida estamos aqui!`
     );
-    const waLink = `https://wa.me/${num}?text=${waMsg}`;
+    const waLink = `https://api.whatsapp.com/send?phone=${numFormatado}&text=${waMsg}`;
     const statusBadge = badgeMap[a.status] || `<span class="badge">${a.status}</span>`;
     const criadoEm = a.criadoEm?.toDate
       ? a.criadoEm.toDate().toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})
@@ -551,7 +616,83 @@ async function updateStatus(id, status) {
 
 function showPage(page) {
   document.querySelectorAll('.sidebar-link').forEach(l=>l.classList.remove('active'));
-  event.currentTarget.classList.add('active');
+  const nav = document.getElementById(`nav-${page}`);
+  nav?.classList.add('active');
+  document.getElementById('page-agendamentos').hidden = page !== 'agendamentos';
+  document.getElementById('page-mensagens').hidden = page !== 'mensagens';
+  document.getElementById('page-title').innerHTML = page === 'mensagens'
+    ? '<i class="fas fa-envelope"></i> Mensagens'
+    : '<i class="fas fa-calendar-alt"></i> Agendamentos';
+  if (page === 'mensagens') renderMensagens();
+}
+
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"']/g, char => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;'
+  }[char]));
+}
+
+async function buscarMensagens() {
+  const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
+  const resposta = await fetch(`${backendUrl}/api/mensagens`);
+  if (!resposta.ok) throw new Error(`Servidor respondeu com HTTP ${resposta.status}`);
+  return resposta.json();
+}
+
+async function renderMensagens() {
+  const target = document.getElementById('message-list');
+  if (!target) return;
+  let todas;
+  try {
+    todas = await buscarMensagens();
+  } catch (error) {
+    target.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Não foi possível carregar as mensagens. Verifique o servidor.</p></div>';
+    return;
+  }
+  const search = (document.getElementById('message-search')?.value || '').toLowerCase();
+  const mensagens = todas.filter(m => {
+    const content = `${m.nome} ${m.email} ${m.texto} ${m.servico}`.toLowerCase();
+    return !search || content.includes(search);
+  });
+  document.getElementById('message-count').textContent = `${mensagens.length} resultado${mensagens.length !== 1 ? 's' : ''}`;
+  const badge = document.getElementById('message-badge');
+  const naoLidas = todas.filter(m => !m.lida).length;
+  badge.textContent = naoLidas;
+  badge.style.display = naoLidas ? '' : 'none';
+  if (!mensagens.length) {
+    target.innerHTML = '<div class="empty-state"><i class="fas fa-envelope-open"></i><p>Nenhuma mensagem recebida.</p></div>';
+    return;
+  }
+  target.innerHTML = mensagens.map(m => `
+    <article class="message-card ${m.lida ? '' : 'unread'}">
+      <div class="message-card-header">
+        <div><strong>${escapeHtml(m.nome)}</strong><small>${escapeHtml(m.email)}${m.telefone ? ` · ${escapeHtml(m.telefone)}` : ''}</small></div>
+        <small>${new Date(m.criadaEm).toLocaleString('pt-BR')}</small>
+      </div>
+      <p><strong>Serviço:</strong> ${escapeHtml(m.servico || 'Não informado')}</p>
+      <p>${escapeHtml(m.texto)}</p>
+      <div class="message-actions">
+        <button class="action-btn confirm" title="Marcar como lida" onclick="marcarMensagem('${m.id}')"><i class="fas fa-check"></i></button>
+        <button class="action-btn cancel" title="Excluir mensagem" onclick="excluirMensagem('${m.id}')"><i class="fas fa-trash"></i></button>
+      </div>
+    </article>`).join('');
+}
+
+async function marcarMensagem(id) {
+  const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
+  await fetch(`${backendUrl}/api/mensagens/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lida: true })
+  });
+  await renderMensagens();
+}
+
+async function excluirMensagem(id) {
+  const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
+  await fetch(`${backendUrl}/api/mensagens/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  await renderMensagens();
+  showToast('Mensagem excluída com sucesso!', 'sucesso');
 }
 
 // ── TOAST ────────────────────────────────────

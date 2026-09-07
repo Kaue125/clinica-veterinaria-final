@@ -2,10 +2,8 @@
 // INICIALIZAÇÃO DOS SERVIÇOS
 // ================================================================
 document.addEventListener('DOMContentLoaded', async () => {
-  // Inicia a UI imediatamente — nunca bloqueia pelo Firebase/EmailJS
   initUI();
 
-  // Serviços externos em background, sem travar nada
   try { if (typeof VetCareDB !== 'undefined') await VetCareDB.init(); }
   catch(e) { console.warn('Firebase ignorado:', e.message); }
 
@@ -59,7 +57,7 @@ function initMobileMenu() {
     });
   });
   document.addEventListener('click', (e) => {
-    if (!navbar.contains(e.target) && navLinks.classList.contains('open')) {
+    if (navbar && !navbar.contains(e.target) && navLinks.classList.contains('open')) {
       navLinks.classList.remove('open');
       navToggle.setAttribute('aria-expanded', 'false');
     }
@@ -116,17 +114,23 @@ function initGallery() {
   document.querySelectorAll('.gallery-item').forEach(item => {
     const open = () => {
       const img = item.querySelector('img');
-      lightboxImg.src = img.src;
-      lightboxImg.alt = img.alt;
-      lightbox.hidden = false;
+      if (lightboxImg && img) {
+        lightboxImg.src = img.src;
+        lightboxImg.alt = img.alt;
+      }
+      if (lightbox) lightbox.hidden = false;
       document.body.style.overflow = 'hidden';
-      lightboxClose.focus();
+      lightboxClose?.focus();
     };
     item.addEventListener('click', open);
     item.addEventListener('keydown', e => { if (e.key==='Enter'||e.key===' '){e.preventDefault();open();} });
   });
 
-  const close = () => { lightbox.hidden=true; lightboxImg.src=''; document.body.style.overflow=''; };
+  const close = () => { 
+    if (lightbox) lightbox.hidden=true; 
+    if (lightboxImg) lightboxImg.src=''; 
+    document.body.style.overflow=''; 
+  };
   lightboxClose?.addEventListener('click', close);
   lightbox?.addEventListener('click', e => { if (e.target===lightbox) close(); });
   document.addEventListener('keydown', e => { if (e.key==='Escape'&&!lightbox?.hidden) close(); });
@@ -177,7 +181,7 @@ function initFAQ() {
 }
 
 // ================================================================
-// CALENDÁRIO & AGENDAMENTO COM FIREBASE + EMAIL + WHATSAPP
+// CALENDÁRIO & AGENDAMENTO
 // ================================================================
 function initCalendar() {
   const HORARIOS  = ['08:00','09:00','10:00','11:00','14:00','15:00','16:00','17:00','18:00','19:00'];
@@ -201,13 +205,11 @@ function initCalendar() {
     placeholder: $('scheduling-placeholder'),
     summary:     $('scheduling-summary'),
     confirmBtn:  $('confirm-scheduling'),
-    newBtn:      $('new-scheduling'),
-    whatsappBtn: $('scheduling-whatsapp'),
     loading:     $('scheduling-loading'),
   };
 
   function render() {
-    if (!els.monthYear || !els.days) return; // segurança: elementos ainda não no DOM
+    if (!els.monthYear || !els.days) return;
     const year = calDate.getFullYear(), month = calDate.getMonth();
     const today = new Date(); today.setHours(0,0,0,0);
     els.monthYear.textContent = new Date(year,month,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
@@ -262,7 +264,6 @@ function initCalendar() {
   els.prevBtn?.addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()-1);render();});
   els.nextBtn?.addEventListener('click',()=>{calDate.setMonth(calDate.getMonth()+1);render();});
 
-  // ──── CONFIRMAR ────
   els.confirmBtn?.addEventListener('click', async () => {
     const nome     = $('sched-name')?.value.trim();
     const telefone = $('sched-phone')?.value.trim();
@@ -276,23 +277,27 @@ function initCalendar() {
     const dataFormatada = selectedDate.toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
     const dados = { nome, telefone, email, pet, servico, dataFormatada, horario: selectedTime };
 
-    // Loading
     if (els.loading) els.loading.style.display='flex';
     els.confirmBtn.disabled=true;
     els.confirmBtn.innerHTML='<i class="fas fa-spinner fa-spin"></i> Confirmando...';
 
     try {
-      // 1️⃣ Salvar — funciona com ou sem Firebase
-      const agLista = JSON.parse(localStorage.getItem('vetcare_agendamentos') || '[]');
-      agLista.unshift({ id: 'ag_' + Date.now(), ...dados, status: 'pendente', criadoEm: new Date().toISOString() });
-      localStorage.setItem('vetcare_agendamentos', JSON.stringify(agLista));
+      const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl)
+        ? VetCareConfig.backendUrl
+        : 'http://localhost:3001';
+      const resposta = await fetch(`${backendUrl}/agendamento`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dados)
+      });
+      const resultado = await resposta.json().catch(() => ({}));
 
-      // Tenta Firebase se disponível (não bloqueia em caso de erro)
-      if (typeof VetCareDB !== 'undefined' && VetCareDB.db) {
-        VetCareDB.salvarAgendamento(dados).catch(e => console.warn('Firebase save falhou:', e));
+      if (!resposta.ok || resultado.agendamento !== true) {
+        const erroCliente = resultado.cliente?.erro;
+        const erroClinica = resultado.clinica?.erro;
+        throw new Error(erroCliente || erroClinica || resultado.erro || `Servidor respondeu com HTTP ${resposta.status}`);
       }
 
-      // 2️⃣ E-mails — ignora erros
       if (typeof VetCareEmail !== 'undefined') {
         Promise.allSettled([
           email ? VetCareEmail.enviarParaCliente(dados) : Promise.resolve(),
@@ -300,47 +305,6 @@ function initCalendar() {
         ]).catch(() => {});
       }
 
-      // 3️⃣ Links WhatsApp — clínica recebe notificação, cliente recebe confirmação
-      const numClinica = (typeof VetCareConfig !== 'undefined') ? VetCareConfig.whatsapp.numero : '5511987654321';
-
-      // Mensagem para a CLÍNICA (notificação de novo agendamento)
-      const msgClinica = encodeURIComponent(
-        `✅ *Novo Agendamento – VetCare*\n\n` +
-        `👤 *Cliente:* ${dados.nome}\n` +
-        `📱 *WhatsApp:* ${dados.telefone}\n` +
-        `🐾 *Pet:* ${dados.pet || 'não informado'}\n` +
-        `💉 *Serviço:* ${dados.servico}\n` +
-        `📅 *Data:* ${dados.dataFormatada}\n` +
-        `⏰ *Horário:* ${dados.horario}\n\n` +
-        `_Agendamento realizado pelo site._`
-      );
-      const waLinkClinica = `https://wa.me/${numClinica}?text=${msgClinica}`;
-
-      // Mensagem para o CLIENTE (confirmação)
-      const numCliente = dados.telefone.replace(/\D/g, '');
-      const numClienteFormatado = numCliente.length === 11 ? `55${numCliente}` : numCliente.length === 13 ? numCliente : `55${numCliente}`;
-      const msgCliente = encodeURIComponent(
-        `Olá, *${dados.nome}*! 🐾\n\n` +
-        `Seu agendamento na *VetCare* foi recebido com sucesso!\n\n` +
-        `📅 *Data:* ${dados.dataFormatada}\n` +
-        `⏰ *Horário:* ${dados.horario}\n` +
-        `💉 *Serviço:* ${dados.servico}\n` +
-        `🐾 *Pet:* ${dados.pet || 'não informado'}\n\n` +
-        `Em breve confirmaremos seu agendamento. Qualquer dúvida é só chamar! 😊`
-      );
-      const waLinkCliente = `https://wa.me/${numClienteFormatado}?text=${msgCliente}`;
-
-      // Botões WhatsApp na tela de sucesso
-      const waLink = waLinkClinica;
-      if (els.whatsappBtn) { els.whatsappBtn.href = waLinkClinica; els.whatsappBtn.style.display = ''; }
-      const btnCliente = document.getElementById('scheduling-whatsapp-cliente');
-      if (btnCliente) { btnCliente.href = waLinkCliente; btnCliente.style.display = ''; }
-
-      // Salva link do cliente para abrir em seguida
-      dados._waLinkCliente = waLinkCliente;
-      dados._waLinkClinica = waLinkClinica;
-
-      // 4️⃣ Tela de sucesso
       if (els.summary) {
         els.summary.textContent =
           `${nome}${pet ? ` (pet: ${pet})` : ''} — ${servico} em ${dataFormatada} às ${selectedTime}.`;
@@ -349,11 +313,12 @@ function initCalendar() {
       els.formFields.hidden   = true;
       els.successBox.hidden   = false;
 
-      showToast('Agendamento confirmado! 🎉', 'sucesso');
-
-      // 5️⃣ Abre WhatsApp do CLIENTE (confirmação) e depois da CLÍNICA (notificação)
-      setTimeout(() => { window.open(dados._waLinkCliente, '_blank'); }, 800);
-      setTimeout(() => { window.open(dados._waLinkClinica, '_blank'); }, 2000);
+      showToast(
+        resultado.sucesso
+          ? 'Agendamento confirmado e mensagens enviadas! 🎉'
+          : 'Agendamento confirmado, mas houve falha no envio de uma mensagem.',
+        resultado.sucesso ? 'sucesso' : 'erro'
+      );
 
     } catch(err) {
       console.error('Erro no agendamento:', err);
@@ -365,16 +330,6 @@ function initCalendar() {
     }
   });
 
-  // ──── NOVO AGENDAMENTO ────
-  els.newBtn?.addEventListener('click',()=>{
-    selectedDate=null; selectedTime=null;
-    els.successBox.hidden=true; els.timesSection.hidden=true;
-    els.formFields.hidden=true; els.placeholder.hidden=false;
-    ['sched-name','sched-phone','sched-email','sched-pet'].forEach(id=>{const el=$(id);if(el)el.value='';});
-    const s=$('sched-service'); if(s)s.value='';
-    render();
-  });
-
   render();
 }
 
@@ -384,16 +339,48 @@ function initCalendar() {
 function initContactForm() {
   document.getElementById('contact-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const form = e.target;
     const btn     = e.target.querySelector('button[type="submit"]');
     const success = document.getElementById('form-success');
+    const mensagem = {
+      id: 'msg_' + Date.now(),
+      nome: form.querySelector('#name').value.trim(),
+      email: form.querySelector('#email').value.trim(),
+      telefone: form.querySelector('#phone').value.trim(),
+      servico: form.querySelector('#service').value,
+      texto: form.querySelector('#message').value.trim(),
+      lida: false,
+      criadaEm: new Date().toISOString()
+    };
+
+    if (!mensagem.nome || !mensagem.email || !mensagem.texto) {
+      showToast('Preencha nome, e-mail e mensagem.', 'erro');
+      return;
+    }
+
     btn.disabled  = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
-    await new Promise(r=>setTimeout(r,1200));
-    e.target.reset();
-    success.hidden=false;
-    btn.disabled=false;
-    btn.innerHTML='<i class="fas fa-paper-plane"></i> Enviar Mensagem';
-    setTimeout(()=>{success.hidden=true;},6000);
+    try {
+      const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl)
+        ? VetCareConfig.backendUrl
+        : '';
+      const resposta = await fetch(`${backendUrl}/api/mensagens`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mensagem)
+      });
+      const resultado = await resposta.json().catch(() => ({}));
+      if (!resposta.ok) throw new Error(resultado.erro || `Servidor respondeu com HTTP ${resposta.status}`);
+      e.target.reset();
+      if (success) success.hidden=false;
+      setTimeout(()=>{ if (success) success.hidden=true; },6000);
+    } catch (error) {
+      console.error('Erro ao enviar mensagem:', error);
+      showToast('Não foi possível enviar. Verifique a conexão com o servidor.', 'erro');
+    } finally {
+      btn.disabled=false;
+      btn.innerHTML='<i class="fas fa-paper-plane"></i> Enviar Mensagem';
+    }
   });
 }
 
