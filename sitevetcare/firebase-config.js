@@ -28,8 +28,8 @@ const CONFIG = {
     : 'http://localhost:3001',
   admin: { senha: 'vetcare2024' },
   supabase: {
-    url: 'https://SEU-PROJETO.supabase.co',
-    anonKey: 'SUA_CHAVE_ANON'
+    url: 'https://vhcmksrfdsgsruxonnej.supabase.co',
+    anonKey: 'sb_publishable_QHgQg1DKujffaNW3QdCSiA_14U4H0rR'
   }
 };
 
