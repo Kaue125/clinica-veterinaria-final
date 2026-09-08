@@ -15,16 +15,28 @@
   --transition: .3s ease;
 }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  width: 100%;
+  max-width: 100%;
+}
 
 body {
   font-family: 'Poppins', sans-serif;
   color: var(--text);
   background: var(--white);
   overflow-x: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 
-main, section, header, footer, div { min-width: 0; }
+main, section, header, footer, div {
+  min-width: 0;
+  max-width: 100%;
+}
+section, header, footer, .navbar, .hero, .stats {
+  width: 100%;
+}
 
 a { text-decoration: none; color: inherit; }
 ul { list-style: none; }
@@ -198,6 +210,7 @@ img { max-width: 100%; display: block; }
   position: relative;
   z-index: 1;
   max-width: 1200px;
+  width: 100%;
   margin: 0 auto;
   padding: 0 24px;
   padding-top: 80px;
