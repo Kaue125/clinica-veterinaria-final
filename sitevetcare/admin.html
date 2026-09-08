@@ -394,10 +394,6 @@
 <script src="firebase-config.js"></script>
 <script>
 // ── SENHA PADRÃO (fallback caso firebase-config.js não carregue) ──
-const ADMIN_SENHA = (typeof VetCareConfig !== 'undefined')
-  ? VetCareConfig.admin.senha
-  : 'vetcare2024';
-
 const WHATSAPP_NUM = (typeof VetCareConfig !== 'undefined')
   ? VetCareConfig.whatsapp.numero
   : '5511987654321';
@@ -407,15 +403,16 @@ async function handleLogin() {
   const pw = document.getElementById('login-password').value.trim();
   const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
   try {
-    if (backendUrl) {
+    if (!backendUrl) throw new Error('Servidor administrativo indisponível.');
+    {
       const resposta = await fetch(`${backendUrl}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ senha: pw })
       });
-      if (!resposta.ok) throw new Error('Senha incorreta.');
-    } else if (pw !== VetCareConfig.admin.senha) {
-      throw new Error('Senha incorreta.');
+      const resultado = await resposta.json().catch(() => ({}));
+      if (!resposta.ok || !resultado.token) throw new Error(resultado.erro || 'Senha incorreta.');
+      sessionStorage.setItem('admin_token', resultado.token);
     }
     sessionStorage.setItem('admin_auth','1');
     document.getElementById('login-screen').style.display='none';
@@ -435,7 +432,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key==='Enter') handleLogin();
   });
   // Auto-login se já estava autenticado
-  if (sessionStorage.getItem('admin_auth')==='1') {
+  if (sessionStorage.getItem('admin_auth')==='1' && sessionStorage.getItem('admin_token')) {
     document.getElementById('login-screen').style.display='none';
     document.getElementById('app').style.display='block';
     startApp();
@@ -464,49 +461,44 @@ const AdminDB = {
   },
   async buscar() {
     const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
+    const token = sessionStorage.getItem('admin_token');
     try {
-      const resposta = await fetch(`${backendUrl}/api/agendamentos`);
+      const resposta = await fetch(`${backendUrl}/api/agendamentos`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (resposta.status === 401) return forceLogout();
       if (resposta.ok) return await resposta.json();
     } catch (error) {
       console.warn('Servidor de agendamentos indisponível:', error.message);
     }
     // Tenta Firebase primeiro, senão usa local
-    if (typeof VetCareDB !== 'undefined' && VetCareDB.db) {
-      try {
-        const lista = await VetCareDB.buscarAgendamentos();
-        return lista.map(a => ({
-          ...a,
-          dataFormatada: a.dataFormatada || a.data_formatada,
-          criadoEm: a.criadoEm || a.criado_em
-        }));
-      } catch (error) {
-        console.warn('Supabase indisponível:', error.message);
-      }
-    }
     return this.lerLocal();
   },
   async atualizarStatus(id, status) {
     const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
+    const token = sessionStorage.getItem('admin_token');
     try {
       const resposta = await fetch(`${backendUrl}/api/agendamentos/${encodeURIComponent(id)}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status })
       });
       if (resposta.ok) return;
     } catch (error) {
       console.warn('Servidor de agendamentos indisponível:', error.message);
     }
-    if (typeof VetCareDB !== 'undefined' && VetCareDB.db) {
-      try { await VetCareDB.atualizarStatus(id, status); return; } catch (error) {
-        console.warn('Supabase indisponível:', error.message);
-      }
-    }
     const lista = this.lerLocal();
     const idx = lista.findIndex(a => a.id === id);
     if (idx >= 0) { lista[idx].status = status; this.gravarLocal(lista); }
   }
 };
+
+function forceLogout() {
+  sessionStorage.removeItem('admin_auth');
+  sessionStorage.removeItem('admin_token');
+  location.reload();
+  return [];
+}
 
 async function startApp() {
   // Inicia Firebase se configurado
@@ -671,13 +663,12 @@ function escapeHtml(value) {
 async function buscarMensagens() {
   const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
   if (backendUrl) {
-    const resposta = await fetch(`${backendUrl}/api/mensagens`);
+    const resposta = await fetch(`${backendUrl}/api/mensagens`, {
+      headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` }
+    });
+    if (resposta.status === 401) return forceLogout();
     if (!resposta.ok) throw new Error(`Servidor respondeu com HTTP ${resposta.status}`);
     return resposta.json();
-  }
-  if (typeof VetCareDB !== 'undefined' && VetCareDB.db) {
-    const mensagens = await VetCareDB.buscarMensagens();
-    return mensagens.map(m => ({ ...m, criadaEm: m.criadaEm || m.criada_em }));
   }
   throw new Error('Configure o Supabase antes de carregar mensagens.');
 }
@@ -724,13 +715,12 @@ async function renderMensagens() {
 async function marcarMensagem(id) {
   const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
   if (backendUrl) {
-    await fetch(`${backendUrl}/api/mensagens/${encodeURIComponent(id)}`, {
+    const resposta = await fetch(`${backendUrl}/api/mensagens/${encodeURIComponent(id)}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` },
       body: JSON.stringify({ lida: true })
     });
-  } else if (typeof VetCareDB !== 'undefined' && VetCareDB.db) {
-    await VetCareDB.marcarMensagem(id);
+    if (resposta.status === 401) return forceLogout();
   }
   await renderMensagens();
 }
@@ -738,9 +728,11 @@ async function marcarMensagem(id) {
 async function excluirMensagem(id) {
   const backendUrl = (typeof VetCareConfig !== 'undefined' && VetCareConfig.backendUrl) || '';
   if (backendUrl) {
-    await fetch(`${backendUrl}/api/mensagens/${encodeURIComponent(id)}`, { method: 'DELETE' });
-  } else if (typeof VetCareDB !== 'undefined' && VetCareDB.db) {
-    await VetCareDB.excluirMensagem(id);
+    const resposta = await fetch(`${backendUrl}/api/mensagens/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${sessionStorage.getItem('admin_token')}` }
+    });
+    if (resposta.status === 401) return forceLogout();
   }
   await renderMensagens();
   showToast('Mensagem excluída com sucesso!', 'sucesso');

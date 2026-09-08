@@ -68,7 +68,9 @@ Render (recurso pago).
 
 ## ⚙️ Configurações
 
-Abra o `server.js` e edite o bloco `CONFIG`:
+Configure as variáveis de ambiente quando necessário. No uso local, a senha do
+painel fica no arquivo ignorado `Servidor/admin-password.txt` e não é publicada
+no GitHub. A API usa:
 
 ```js
 const CONFIG = {
@@ -79,6 +81,9 @@ const CONFIG = {
   clinicaNum:   '5511987654321',  // ⚠️ TROQUE pelo número real da clínica
 };
 ```
+
+Depois de alterar as policies do Supabase, execute novamente o arquivo
+`supabase-schema.sql` no SQL Editor para remover o acesso administrativo anônimo.
 
 ---
 

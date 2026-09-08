@@ -5,6 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const app = express();
 
 app.use(cors());
@@ -12,16 +13,38 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'sitevetcare')));
 
 // ── Configurações da Evolution API ────────────────────────────────
+const passwordFile = path.join(__dirname, 'admin-password.txt');
+const configuredAdminPassword = process.env.ADMIN_PASSWORD ||
+  (fs.existsSync(passwordFile) ? fs.readFileSync(passwordFile, 'utf8').trim() : '');
+
+if (!configuredAdminPassword) {
+  throw new Error('Defina ADMIN_PASSWORD ou crie Servidor/admin-password.txt antes de iniciar.');
+}
+
 const CONFIG = {
   porta: Number(process.env.PORT) || 3001,
   evolutionUrl: process.env.EVOLUTION_URL || 'http://localhost:8080',
   apiKey: process.env.EVOLUTION_API_KEY || 'vetcare-secret-key',
   instanceName: process.env.EVOLUTION_INSTANCE || 'vetcare',
   clinicaNum: process.env.CLINICA_NUM || '5511985970246',
-  adminPassword: process.env.ADMIN_PASSWORD || 'vetcare2024'
+  adminPassword: configuredAdminPassword
 };
 
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'vetcare-data.json');
+const adminSessions = new Map();
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+
+function requireAdmin(req, res, next) {
+  const authorization = req.get('authorization') || '';
+  const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
+  const expiresAt = adminSessions.get(token);
+  if (!expiresAt || expiresAt < Date.now()) {
+    adminSessions.delete(token);
+    return res.status(401).json({ erro: 'Autenticação administrativa necessária.' });
+  }
+  adminSessions.set(token, Date.now() + SESSION_TTL_MS);
+  return next();
+}
 
 function lerDados() {
   try {
@@ -160,11 +183,11 @@ app.post('/agendamento', async (req, res) => {
   }
 });
 
-app.get('/api/agendamentos', (req, res) => {
+app.get('/api/agendamentos', requireAdmin, (req, res) => {
   res.json(lerDados().agendamentos);
 });
 
-app.patch('/api/agendamentos/:id', (req, res) => {
+app.patch('/api/agendamentos/:id', requireAdmin, (req, res) => {
   const { status } = req.body;
   const statusValidos = ['pendente', 'confirmado', 'concluido', 'cancelado'];
   if (!statusValidos.includes(status)) {
@@ -178,7 +201,7 @@ app.patch('/api/agendamentos/:id', (req, res) => {
   return res.json(agendamento);
 });
 
-app.get('/api/mensagens', (req, res) => {
+app.get('/api/mensagens', requireAdmin, (req, res) => {
   res.json(lerDados().mensagens);
 });
 
@@ -203,7 +226,7 @@ app.post('/api/mensagens', (req, res) => {
   return res.status(201).json(mensagem);
 });
 
-app.patch('/api/mensagens/:id', (req, res) => {
+app.patch('/api/mensagens/:id', requireAdmin, (req, res) => {
   const dados = lerDados();
   const mensagem = dados.mensagens.find(item => item.id === req.params.id);
   if (!mensagem) return res.status(404).json({ erro: 'Mensagem não encontrada.' });
@@ -215,7 +238,7 @@ app.patch('/api/mensagens/:id', (req, res) => {
   return res.json(mensagem);
 });
 
-app.delete('/api/mensagens/:id', (req, res) => {
+app.delete('/api/mensagens/:id', requireAdmin, (req, res) => {
   const dados = lerDados();
   const quantidadeAnterior = dados.mensagens.length;
   dados.mensagens = dados.mensagens.filter(item => item.id !== req.params.id);
@@ -253,10 +276,14 @@ app.get('/health', (req, res) => {
 
 app.post('/api/admin/login', (req, res) => {
   const senha = typeof req.body?.senha === 'string' ? req.body.senha : '';
-  if (senha !== CONFIG.adminPassword) {
+  const expected = Buffer.from(CONFIG.adminPassword);
+  const received = Buffer.from(senha);
+  if (received.length !== expected.length || !crypto.timingSafeEqual(received, expected)) {
     return res.status(401).json({ autenticado: false, erro: 'Senha incorreta.' });
   }
-  return res.json({ autenticado: true });
+  const token = crypto.randomBytes(32).toString('hex');
+  adminSessions.set(token, Date.now() + SESSION_TTL_MS);
+  return res.json({ autenticado: true, token, expiraEm: SESSION_TTL_MS });
 });
 
 // ── Iniciar Servidor Node ─────────────────────────────────────────

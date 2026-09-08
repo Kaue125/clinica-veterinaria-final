@@ -36,12 +36,14 @@ if (-not (Wait-Http 'http://localhost:3001/health' 30)) {
   throw 'O backend VetCare não respondeu na porta 3001.'
 }
 
-$tunnel = Get-Process -Name cloudflared -ErrorAction SilentlyContinue
-if (-not $tunnel) {
+$tunnelProcess = Get-CimInstance Win32_Process -Filter "Name = 'cloudflared.exe'" |
+  Where-Object { $_.CommandLine -like '*tunnel --url http://localhost:3001*' }
+if (-not $tunnelProcess) {
   if (-not (Test-Path $cloudflared)) {
     throw "cloudflared não encontrado em $cloudflared."
   }
   Write-Host 'Iniciando túnel HTTPS público...'
+  Set-Content -Path (Join-Path $server 'tunnel-error.log') -Value '' -Encoding UTF8
   Start-Process -FilePath $cloudflared `
     -ArgumentList 'tunnel --url http://localhost:3001 --no-autoupdate' `
     -WorkingDirectory $server `

@@ -25,17 +25,15 @@ create table if not exists public.mensagens (
 alter table public.agendamentos enable row level security;
 alter table public.mensagens enable row level security;
 
+drop policy if exists "site pode inserir agendamentos" on public.agendamentos;
+drop policy if exists "site pode consultar agendamentos" on public.agendamentos;
+drop policy if exists "painel pode atualizar agendamentos" on public.agendamentos;
+drop policy if exists "site pode inserir mensagens" on public.mensagens;
+drop policy if exists "painel pode consultar mensagens" on public.mensagens;
+drop policy if exists "painel pode atualizar mensagens" on public.mensagens;
+drop policy if exists "painel pode excluir mensagens" on public.mensagens;
+
 create policy "site pode inserir agendamentos"
   on public.agendamentos for insert to anon with check (true);
-create policy "site pode consultar agendamentos"
-  on public.agendamentos for select to anon using (true);
-create policy "painel pode atualizar agendamentos"
-  on public.agendamentos for update to anon using (true) with check (true);
 create policy "site pode inserir mensagens"
   on public.mensagens for insert to anon with check (true);
-create policy "painel pode consultar mensagens"
-  on public.mensagens for select to anon using (true);
-create policy "painel pode atualizar mensagens"
-  on public.mensagens for update to anon using (true) with check (true);
-create policy "painel pode excluir mensagens"
-  on public.mensagens for delete to anon using (true);

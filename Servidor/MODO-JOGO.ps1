@@ -12,8 +12,11 @@ foreach ($process in $nodeProcesses) {
 }
 
 Write-Host 'Encerrando Cloudflare Tunnel...'
-Get-Process -Name cloudflared -ErrorAction SilentlyContinue |
-  Stop-Process -Force
+$tunnels = Get-CimInstance Win32_Process -Filter "Name = 'cloudflared.exe'" |
+  Where-Object { $_.CommandLine -like '*tunnel --url http://localhost:3001*' }
+foreach ($tunnel in $tunnels) {
+  Stop-Process -Id $tunnel.ProcessId -Force
+}
 
 Write-Host 'Parando Evolution API e banco de dados...'
 docker compose -f $composeFile down

@@ -1,6 +1,7 @@
 node_modules
 Servidor/vetcare-data.json
 Servidor/*.log
+Servidor/admin-password.txt
 
 # Local Netlify folder
 .netlify

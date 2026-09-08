@@ -24,7 +24,6 @@ const CONFIG = {
     instanceName: "SUA_INSTANCIA"              // Nome da instância
   },
   backendUrl: 'https://valued-biblical-demonstration-moscow.trycloudflare.com',
-  admin: { senha: 'vetcare2024' },
   supabase: {
     url: 'https://vhcmksrfdsgsruxonnej.supabase.co',
     anonKey: 'sb_publishable_QHgQg1DKujffaNW3QdCSiA_14U4H0rR'
