@@ -130,6 +130,15 @@ Execute uma vez, como usuário do Windows, o arquivo
 `CONFIGURAR-INICIALIZACAO.bat`. Depois disso, ao entrar no Windows, ele iniciará
 Docker, Evolution API, backend e Cloudflare Tunnel automaticamente.
 
+### Modo jogo
+
+Quando quiser liberar memória e processamento para jogar, execute
+`MODO-JOGO.bat`. Ele encerra o backend, o Cloudflare Tunnel e os containers sem
+apagar volumes ou histórico, além de desativar a inicialização automática.
+
+Quando quiser voltar a usar o site, execute `REATIVAR-VETCARE.bat`. Ele recria a
+inicialização automática e inicia os serviços novamente.
+
 O Quick Tunnel gratuito cria uma URL diferente após cada reinício. O script
 `INICIAR-VETCARE.ps1` descobre a nova URL, atualiza `firebase-config.js` e envia
 automaticamente a alteração ao GitHub. O GitHub Pages publica a nova configuração
