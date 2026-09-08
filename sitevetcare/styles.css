@@ -828,8 +828,16 @@ img { max-width: 100%; display: block; }
   .testimonial-card { padding: 28px 22px; }
 }
 @media (max-width: 520px) {
+  body { min-width: 0; }
+  .navbar { padding: 12px 0; }
+  .logo { font-size: 1.25rem; }
+  .hero { min-height: 640px; }
+  .hero-content h1 { font-size: 2rem; }
+  .hero-badge { position: static; display: inline-flex; margin-top: 24px; padding: 12px 16px; }
+  .hero-badge i { font-size: 1.5rem; }
+  .hero-badge span { font-size: .8rem; }
   .section-header p { font-size: .92rem; }
-  .services, .testimonials, .about { padding-left: 16px; padding-right: 16px; }
+  .services, .testimonials, .about, .team, .pricing { padding: 64px 16px; }
   .faq, .contact, .map-section { padding: 64px 16px; }
   .contact-info, .contact-form { padding: 24px 18px; }
   .footer-content { grid-template-columns: 1fr; }
@@ -838,9 +846,14 @@ img { max-width: 100%; display: block; }
   .stats { padding: 40px 16px; }
   .stat-item h3 { font-size: 1.8rem; }
   .services-grid { grid-template-columns: 1fr; }
+  .team-grid, .pricing-grid { grid-template-columns: 1fr; gap: 20px; }
+  .pricing-card.popular { transform: none; }
+  .experience-badge { right: 8px; bottom: 8px; padding: 12px; }
+  .experience-badge strong { font-size: 1.4rem; }
   .gallery-grid { grid-template-columns: 1fr; }
   .gallery-large img, .gallery-item img { min-height: 220px; }
   .scheduling-wrapper { padding: 16px; }
+  .calendar-panel, .scheduling-form-panel { min-width: 0; }
   .calendar-weekdays { font-size: .68rem; }
   .cal-day { padding: 9px 0; font-size: .8rem; }
   .time-slots { grid-template-columns: repeat(2, 1fr); }
