@@ -124,6 +124,16 @@ Agendamento realizado pelo site. Status: Pendente.
 - **Parar:** feche a janela do terminal OU clique em `PARAR.bat`
 - **O QR Code expira** — se o WhatsApp desconectar, clique em "Gerar QR Code" novamente em `http://localhost:3001/setup`
 
+### Inicialização automática no Windows
+
+Execute uma vez, como usuário do Windows, o arquivo
+`CONFIGURAR-INICIALIZACAO.bat`. Depois disso, ao entrar no Windows, ele iniciará
+Docker, Evolution API, backend e Cloudflare Tunnel automaticamente.
+
+O Quick Tunnel gratuito cria uma URL diferente após cada reinício. Consulte
+`Servidor\tunnel-error.log` para descobrir a nova URL. Para não precisar atualizar
+o site após cada reinício, use um túnel nomeado gratuito do Cloudflare.
+
 ---
 
 ## ❓ Problemas comuns
