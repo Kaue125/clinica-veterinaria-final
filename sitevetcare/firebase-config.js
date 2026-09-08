@@ -23,9 +23,7 @@ const CONFIG = {
     apiKey: "SEU_API_KEY_AQUI",                // Sua API Key da Evolution
     instanceName: "SUA_INSTANCIA"              // Nome da instância
   },
-  backendUrl: window.location.protocol === 'http:' || window.location.protocol === 'https:'
-    ? ''
-    : 'http://localhost:3001',
+  backendUrl: 'https://valued-biblical-demonstration-moscow.trycloudflare.com',
   admin: { senha: 'vetcare2024' },
   supabase: {
     url: 'https://vhcmksrfdsgsruxonnej.supabase.co',
