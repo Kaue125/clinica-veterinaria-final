@@ -24,6 +24,8 @@ body {
   overflow-x: hidden;
 }
 
+main, section, header, footer, div { min-width: 0; }
+
 a { text-decoration: none; color: inherit; }
 ul { list-style: none; }
 img { max-width: 100%; display: block; }
@@ -809,10 +811,10 @@ img { max-width: 100%; display: block; }
   .hero-content p { font-size: 1rem; }
   .hero-buttons { flex-direction: column; align-items: stretch; max-width: 320px; }
   .hero-buttons .btn { justify-content: center; }
-  .stats-container { grid-template-columns: repeat(2, 1fr); gap: 24px 12px; }
-  .services-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .stats-container { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 12px; }
+  .services-grid, .team-grid, .pricing-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
   .service-card { padding: 24px 16px; }
-  .gallery-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .gallery-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
   .gallery-large { grid-row: span 1; }
   .gallery-large img { min-height: 220px; }
   .gallery-item img { min-height: 150px; }
@@ -823,9 +825,11 @@ img { max-width: 100%; display: block; }
   .section-header { margin-bottom: 36px; }
   .section-header h2 { font-size: 2rem; }
   .form-row, .contact-wrapper { grid-template-columns: 1fr; }
-  .footer-content { grid-template-columns: 1fr 1fr; gap: 32px; }
-  .footer-brand { grid-column: 1 / -1; }
+  .footer-content { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .footer-brand { grid-column: auto; }
   .testimonial-card { padding: 28px 22px; }
+  .pricing-card.popular { transform: none; }
+  .experience-badge { right: 8px; bottom: 8px; }
 }
 @media (max-width: 520px) {
   body { min-width: 0; }
@@ -846,9 +850,7 @@ img { max-width: 100%; display: block; }
   .stats { padding: 40px 16px; }
   .stat-item h3 { font-size: 1.8rem; }
   .services-grid { grid-template-columns: 1fr; }
-  .team-grid, .pricing-grid { grid-template-columns: 1fr; gap: 20px; }
-  .pricing-card.popular { transform: none; }
-  .experience-badge { right: 8px; bottom: 8px; padding: 12px; }
+  .experience-badge { padding: 12px; }
   .experience-badge strong { font-size: 1.4rem; }
   .gallery-grid { grid-template-columns: 1fr; }
   .gallery-large img, .gallery-item img { min-height: 220px; }
