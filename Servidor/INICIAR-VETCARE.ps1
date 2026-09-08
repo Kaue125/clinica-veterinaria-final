@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $server = Join-Path $root 'Servidor'
 $cloudflared = 'C:\Program Files (x86)\cloudflared\cloudflared.exe'
+$configFile = Join-Path $root 'sitevetcare\firebase-config.js'
 
 function Wait-Http($url, $timeoutSeconds = 60) {
   $deadline = (Get-Date).AddSeconds($timeoutSeconds)
@@ -48,5 +49,47 @@ if (-not $tunnel) {
     -RedirectStandardError (Join-Path $server 'tunnel-error.log')
 }
 
+Write-Host 'Aguardando URL pública do Cloudflare Tunnel...'
+$tunnelUrl = $null
+$tunnelLog = Join-Path $server 'tunnel-error.log'
+$deadline = (Get-Date).AddSeconds(60)
+do {
+  if (Test-Path $tunnelLog) {
+    $match = Select-String -Path $tunnelLog -Pattern 'https://[a-z0-9-]+\.trycloudflare\.com' |
+      Select-Object -Last 1
+    if ($match) {
+      $tunnelUrl = [regex]::Match($match.Line, 'https://[a-z0-9-]+\.trycloudflare\.com').Value
+    }
+  }
+  if (-not $tunnelUrl) { Start-Sleep -Seconds 2 }
+} while (-not $tunnelUrl -and (Get-Date) -lt $deadline)
+
+if (-not $tunnelUrl) {
+  throw 'Não foi possível descobrir a URL pública do Cloudflare Tunnel.'
+}
+
+Write-Host "URL pública: $tunnelUrl"
+$config = Get-Content $configFile -Raw
+$updatedConfig = [regex]::Replace(
+  $config,
+  "backendUrl:\s*'https://[^']*'",
+  "backendUrl: '$tunnelUrl'"
+)
+
+if ($updatedConfig -ne $config) {
+  Set-Content -Path $configFile -Value $updatedConfig -Encoding UTF8
+  Push-Location $root
+  try {
+    git add sitevetcare/firebase-config.js
+    git diff --cached --quiet
+    if ($LASTEXITCODE -ne 0) {
+      git commit -m "Atualiza URL pública do backend"
+      git push origin main
+    }
+  } finally {
+    Pop-Location
+  }
+}
+
 Write-Host ''
-Write-Host 'VetCare iniciado. Consulte Servidor\tunnel-error.log para ver a URL pública.'
+Write-Host 'VetCare iniciado e URL pública sincronizada com o GitHub.'
