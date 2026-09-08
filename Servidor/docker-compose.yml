@@ -44,6 +44,7 @@ services:
       - DATABASE_CONNECTION_URI=postgresql://evolution:evolutionpassword@postgres:5432/evolution
       - DATABASE_SAVE_DATA_INSTANCE=true
       - DATABASE_SAVE_DATA_NEW_MESSAGE=true
+      - DATABASE_SAVE_DATA_MEDIA_MESSAGE=true
       - CACHE_REDIS_ENABLED=false
       - CACHE_LOCAL_ENABLED=true
 
